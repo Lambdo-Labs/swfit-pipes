@@ -13,7 +13,7 @@ import Foundation
 
 // MARK: - Pad Types and References
 
-public enum ElementPadType {
+public enum ElementPadType: Sendable {
   case input
   case output
 }
@@ -25,7 +25,7 @@ public enum ElementPadType {
 //  // todo add format
 //}
 
-public enum PadRef: Hashable {
+public enum PadRef: Hashable, Sendable {
   case none
   case inputDefault
   case outputDefault
@@ -137,7 +137,7 @@ public enum PipelineSchemaItem {
 }
 
 public enum PipelineChild: Identifiable {
-  var id: String {
+  public var id: String {
     switch self {
     case .source(child: let pipelineSourceElement, viaOut: _):
       pipelineSourceElement.id
@@ -264,7 +264,7 @@ public extension Pipeline {
       }
     }
     
-    let unterminatedEndSources = pipeTasksLists.compactMap { tasks -> PipelineChild? in
+    let _ = pipeTasksLists.compactMap { tasks -> PipelineChild? in
       let last = tasks.last
       guard let last else {
         return nil

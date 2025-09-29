@@ -21,9 +21,9 @@ public struct DataBuffer: BufferProtocol {
 
 public struct TextBuffer: BufferProtocol {
     public let text: String
-    public let metadata: [String: Any]
+    public let metadata: [String: String] // Changed from Any to String for Sendable conformance
     
-    public init(text: String, metadata: [String: Any] = [:]) {
+    public init(text: String, metadata: [String: String] = [:]) {
         self.text = text
         self.metadata = metadata
     }
@@ -178,7 +178,7 @@ public actor MultiOutputSource: PipelineSourceElement {
                 if counter % 3 == 0 {
                     let metaBuffer = TextBuffer(
                         text: "Metadata",
-                        metadata: ["counter": counter, "timestamp": Date().timeIntervalSince1970]
+                        metadata: ["counter": "\(counter)", "timestamp": "\(Date().timeIntervalSince1970)"]
                     )
                     metadataContinuation.yield(metaBuffer)
                 }
