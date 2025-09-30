@@ -33,6 +33,7 @@ let package = Package(
             dependencies: [
                 "SwiftPipes",
                 .product(name: "RTC", package: "swift-rtc"),
+                .product(name: "RTCP", package: "swift-rtc"),
             ]),
         .executableTarget(
             name: "CameraRTPExample",
@@ -42,6 +43,12 @@ let package = Package(
             dependencies: ["SwiftPipesRTC"]),
         .executableTarget(
             name: "SimpleH265Test",
+            dependencies: ["SwiftPipesRTC"]),
+        .executableTarget(
+            name: "RTPRTCPSimpleExample",
+            dependencies: ["SwiftPipesRTC"]),
+        .executableTarget(
+            name: "MultipeerSimpleExample",
             dependencies: ["SwiftPipesRTC"]),
         .testTarget(
             name: "SwiftPipesTests",
