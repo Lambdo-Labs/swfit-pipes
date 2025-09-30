@@ -16,15 +16,40 @@ let package = Package(
         .library(
             name: "SwiftPipes",
             targets: ["SwiftPipes"]),
+        .library(
+            name: "SwiftPipesRTC",
+            targets: ["SwiftPipesRTC"]),
+    ],
+    dependencies: [
+        .package(url: "https://github.com/ngr-tc/swift-rtc.git", from: "0.7.0"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
             name: "SwiftPipes"),
+        .target(
+            name: "SwiftPipesRTC",
+            dependencies: [
+                "SwiftPipes",
+                .product(name: "RTC", package: "swift-rtc"),
+            ]),
+        .executableTarget(
+            name: "CameraRTPExample",
+            dependencies: ["SwiftPipesRTC"]),
+        .executableTarget(
+            name: "FullRoundTripTest",
+            dependencies: ["SwiftPipesRTC"]),
+        .executableTarget(
+            name: "SimpleH265Test",
+            dependencies: ["SwiftPipesRTC"]),
         .testTarget(
             name: "SwiftPipesTests",
             dependencies: ["SwiftPipes"]
+        ),
+        .testTarget(
+            name: "SwiftPipesRTCTests",
+            dependencies: ["SwiftPipesRTC"]
         ),
     ]
 )

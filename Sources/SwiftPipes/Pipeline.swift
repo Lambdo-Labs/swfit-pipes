@@ -38,11 +38,17 @@ public struct ElementOutputPad<Stream: AsyncSequence>: Sendable
 where Stream.Element: Sendable, Stream: Sendable {
   //  var stream: any AsyncSequence
   
-  var ref: PadRef = .outputDefault
-  var padType: ElementPadType = .output
-  var stream: Stream
+  public var ref: PadRef = .outputDefault
+  public var padType: ElementPadType = .output
+  public var stream: Stream
   //  var stream: Stream
   // todo add format
+  
+  public init(ref: PadRef = .outputDefault, padType: ElementPadType = .output, stream: Stream) {
+    self.ref = ref
+    self.padType = padType
+    self.stream = stream
+  }
 }
 
 /// a pad within an element that receives data for a separate element
@@ -50,10 +56,16 @@ where Stream.Element: Sendable, Stream: Sendable {
 public struct ElementInputPad<Buffer: BufferProtocol>: Sendable {
   //  var stream: any AsyncSequence
   
-  var ref: PadRef = .inputDefault
-  var padType: ElementPadType = .input
-  var handleBuffer: @Sendable (Pipeline, Buffer) async -> Void
+  public var ref: PadRef = .inputDefault
+  public var padType: ElementPadType = .input
+  public var handleBuffer: @Sendable (Pipeline, Buffer) async -> Void
   // todo add format
+  
+  public init(ref: PadRef = .inputDefault, padType: ElementPadType = .input, handleBuffer: @escaping @Sendable (Pipeline, Buffer) async -> Void) {
+    self.ref = ref
+    self.padType = padType
+    self.handleBuffer = handleBuffer
+  }
 }
 
 // a pad within an element that receives data from the element
