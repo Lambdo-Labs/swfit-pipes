@@ -33,6 +33,73 @@ public struct EncodedH265Buffer: BufferProtocol {
     }
 }
 
+// Helper to extract parameter sets from CMFormatDescription
+struct H265ParameterSets: Codable {
+    let vps: Data
+    let sps: Data
+    let pps: Data
+    
+    init?(from formatDescription: CMFormatDescription) {
+        // Get hvcC data from format description
+        guard let extensions = CMFormatDescriptionGetExtensions(formatDescription) as? [String: Any],
+              let atoms = extensions["SampleDescriptionExtensionAtoms"] as? [String: Any],
+              let hvcC = atoms["hvcC"] as? Data else {
+            return nil
+        }
+        
+        // Parse hvcC to extract parameter sets
+        // The hvcC format is complex, but we can extract the parameter sets
+        guard hvcC.count > 22 else { return nil }
+        
+        var vps: Data?
+        var sps: Data?
+        var pps: Data?
+        
+        // Skip header (23 bytes) and read arrays
+        var offset = 23
+        let numArrays = Int(hvcC[22])
+        
+        for _ in 0..<numArrays {
+            guard offset + 3 <= hvcC.count else { break }
+            
+            let arrayCompleteness = hvcC[offset]
+            let nalUnitType = hvcC[offset] & 0x3F
+            let numNalus = Int(hvcC[offset + 1]) << 8 | Int(hvcC[offset + 2])
+            offset += 3
+            
+            for _ in 0..<numNalus {
+                guard offset + 2 <= hvcC.count else { break }
+                let nalUnitLength = Int(hvcC[offset]) << 8 | Int(hvcC[offset + 1])
+                offset += 2
+                
+                guard offset + nalUnitLength <= hvcC.count else { break }
+                let nalUnitData = hvcC[offset..<(offset + nalUnitLength)]
+                
+                switch nalUnitType {
+                case 32: // VPS
+                    vps = nalUnitData
+                case 33: // SPS
+                    sps = nalUnitData
+                case 34: // PPS
+                    pps = nalUnitData
+                default:
+                    break
+                }
+                
+                offset += nalUnitLength
+            }
+        }
+        
+        guard let vpsData = vps, let spsData = sps, let ppsData = pps else {
+            return nil
+        }
+        
+        self.vps = vpsData
+        self.sps = spsData
+        self.pps = ppsData
+    }
+}
+
 // MARK: - Codable support for network transmission
 extension EncodedH265Buffer: Codable {
     enum CodingKeys: String, CodingKey {
@@ -42,7 +109,7 @@ extension EncodedH265Buffer: Codable {
         case durationSeconds
         case durationTimescale
         case isKeyFrame
-        case formatDescriptionData
+        case parameterSets
     }
     
     public init(from decoder: Decoder) throws {
@@ -60,11 +127,37 @@ extension EncodedH265Buffer: Codable {
         
         isKeyFrame = try container.decode(Bool.self, forKey: .isKeyFrame)
         
-        // Decode format description if present
-        if let formatData = try container.decodeIfPresent(Data.self, forKey: .formatDescriptionData) {
-            // For H.265, we need to extract parameter sets from the data
-            // This is a simplified version - in production you'd properly parse the format
-            formatDescription = nil // Will be recreated on the receiving side
+        // Decode parameter sets and recreate format description if present
+        if let parameterSets = try container.decodeIfPresent(H265ParameterSets.self, forKey: .parameterSets) {
+            var formatDesc: CMFormatDescription?
+            let status = parameterSets.vps.withUnsafeBytes { vpsBytes in
+                parameterSets.sps.withUnsafeBytes { spsBytes in
+                    parameterSets.pps.withUnsafeBytes { ppsBytes in
+                        let parameterSetPointers: [UnsafePointer<UInt8>] = [
+                            vpsBytes.bindMemory(to: UInt8.self).baseAddress!,
+                            spsBytes.bindMemory(to: UInt8.self).baseAddress!,
+                            ppsBytes.bindMemory(to: UInt8.self).baseAddress!
+                        ]
+                        let parameterSetSizes = [parameterSets.vps.count, parameterSets.sps.count, parameterSets.pps.count]
+                        
+                        return parameterSetPointers.withUnsafeBufferPointer { pointers in
+                            parameterSetSizes.withUnsafeBufferPointer { sizes in
+                                CMVideoFormatDescriptionCreateFromHEVCParameterSets(
+                                    allocator: kCFAllocatorDefault,
+                                    parameterSetCount: 3,
+                                    parameterSetPointers: pointers.baseAddress!,
+                                    parameterSetSizes: sizes.baseAddress!,
+                                    nalUnitHeaderLength: 4,
+                                    extensions: nil,
+                                    formatDescriptionOut: &formatDesc
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
+            formatDescription = (status == noErr) ? formatDesc : nil
         } else {
             formatDescription = nil
         }
@@ -82,9 +175,11 @@ extension EncodedH265Buffer: Codable {
         
         try container.encode(isKeyFrame, forKey: .isKeyFrame)
         
-        // For format description, we could serialize it but it's complex
-        // For now, we'll let the decoder recreate it from the first keyframe
-        // In a real implementation, you'd extract and encode the parameter sets
+        // Extract and encode parameter sets from format description
+        if let formatDesc = formatDescription,
+           let parameterSets = H265ParameterSets(from: formatDesc) {
+            try container.encode(parameterSets, forKey: .parameterSets)
+        }
     }
 }
 

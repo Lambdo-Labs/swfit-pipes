@@ -165,7 +165,7 @@ public actor H265DecoderFilter: PipelineFilterElement {
         let context = DecoderContext(continuation: outputContinuation)
         
         // Decode the frame
-        let flags: VTDecodeFrameFlags = [._EnableAsynchronousDecompression]
+        let flags: VTDecodeFrameFlags = []
         var flagsOut = VTDecodeInfoFlags()
         
         let status = VTDecompressionSessionDecodeFrame(
@@ -196,9 +196,9 @@ public actor H265DecoderFilter: PipelineFilterElement {
         
         if status != noErr {
             print("H265Decoder: Failed to decode frame: \(status)")
-        } else {
-            // Wait for async decode to complete
-            VTDecompressionSessionWaitForAsynchronousFrames(session)
+            if flagsOut.contains(.frameDropped) {
+                print("  Frame was dropped")
+            }
         }
     }
     
@@ -340,30 +340,46 @@ public actor H265DecoderFilter: PipelineFilterElement {
         print("H265Decoder: Format desc - media type: \(mediaType), subtype: \(subType) (HEVC: \(kCMVideoCodecType_HEVC))")
         
         var blockBuffer: CMBlockBuffer?
-        let data = buffer.data as NSData
         
-        // Create block buffer directly from data
-        var status = CMBlockBufferCreateWithMemoryBlock(
-            allocator: kCFAllocatorDefault,
-            memoryBlock: UnsafeMutableRawPointer(mutating: data.bytes),
-            blockLength: data.length,
-            blockAllocator: kCFAllocatorNull,
-            customBlockSource: nil,
-            offsetToData: 0,
-            dataLength: data.length,
-            flags: 0,
-            blockBufferOut: &blockBuffer
-        )
+        // Create block buffer with a copy of the data
+        var status = buffer.data.withUnsafeBytes { dataPtr in
+            CMBlockBufferCreateWithMemoryBlock(
+                allocator: kCFAllocatorDefault,
+                memoryBlock: nil,
+                blockLength: buffer.data.count,
+                blockAllocator: kCFAllocatorDefault,
+                customBlockSource: nil,
+                offsetToData: 0,
+                dataLength: buffer.data.count,
+                flags: 0,
+                blockBufferOut: &blockBuffer
+            )
+        }
         
         guard status == noErr, let blockBuffer = blockBuffer else {
-            print("H265Decoder: Failed to create block buffer: \(status)")
+            print("H265Decoder: Failed to create empty block buffer: \(status)")
             return nil
         }
         
-        print("H265Decoder: Created block buffer with \(data.length) bytes")
+        // Copy data into block buffer
+        status = buffer.data.withUnsafeBytes { dataPtr in
+            CMBlockBufferReplaceDataBytes(
+                with: dataPtr.baseAddress!,
+                blockBuffer: blockBuffer,
+                offsetIntoDestination: 0,
+                dataLength: buffer.data.count
+            )
+        }
+        
+        guard status == noErr else {
+            print("H265Decoder: Failed to create empty block buffer: \(status)")
+            return nil
+        }
+        
+        print("H265Decoder: Created block buffer with \(buffer.data.count) bytes")
         
         var sampleBuffer: CMSampleBuffer?
-        let sampleSizeArray = [data.count]
+        let sampleSizeArray = [buffer.data.count]
         
         status = CMSampleBufferCreateReady(
             allocator: kCFAllocatorDefault,
