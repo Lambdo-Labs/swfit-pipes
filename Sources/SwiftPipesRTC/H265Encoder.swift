@@ -299,9 +299,10 @@ public actor H265EncoderFilter: PipelineFilterElement {
         let width = CVPixelBufferGetWidth(imageBuffer)
         let height = CVPixelBufferGetHeight(imageBuffer)
         
-        let encoderSpecification: [String: Any] = [
-            kVTVideoEncoderSpecification_RequireHardwareAcceleratedVideoEncoder as String: false
-        ]
+        var encoderSpecification: [String: Any] = [:]
+        if #available(iOS 17.4, macOS 14.4, tvOS 17.4, *) {
+            encoderSpecification[kVTVideoEncoderSpecification_RequireHardwareAcceleratedVideoEncoder as String] = false
+        }
         
         var session: VTCompressionSession?
         let status = VTCompressionSessionCreate(
