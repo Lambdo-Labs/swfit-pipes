@@ -291,9 +291,10 @@ public actor H265DecoderFilter: PipelineFilterElement {
     private func createDecompressionSession() async {
         guard let formatDesc = formatDescription else { return }
         
-        let decoderSpecification: [String: Any] = [
-            kVTVideoDecoderSpecification_RequireHardwareAcceleratedVideoDecoder as String: false
-        ]
+        var decoderSpecification: [String: Any] = [:]
+        if #available(iOS 17.0, *) {
+            decoderSpecification[kVTVideoDecoderSpecification_RequireHardwareAcceleratedVideoDecoder as String] = false
+        }
         
         // Create output image buffer attributes
         let imageBufferAttributes: [String: Any] = [
